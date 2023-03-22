@@ -151,7 +151,7 @@ if __name__ == "__main__":
             writer.writerow(headers)
 
             #Artvee categorizes its works and these are how they are written in the url
-            categories = ["abstract", "figurative", "landscape", "religion", "mythology", "posters", "animals", "illustration", "fashion", "still-life", "historical", "botanical", "drawings", "japanese-art"]
+            categories = ["abstract", "figurative", "landscape", "religion", "mythology", "posters", "animals", "illustration", "fashion", "still-life", "botanical", "drawings", "asian-art"]
 
             for category in categories:
                 no_pages = count_pages(category)
@@ -166,3 +166,27 @@ if __name__ == "__main__":
 
         #Create the json after all data is written in the csv
         create_json(csv_path, json_path)
+
+def find_Year(title):
+    possibles = []
+
+
+
+    possibles.sort(key = lambda possible: possible[0])
+    return possibles.pop()
+
+def find_fourDigitNumbers(title):
+    pattern = re.compile("\d{4}")
+    matches = re.findall(pattern, title)
+    return matches
+
+def find_CenturyNumbers(title):
+    #only check for numbers ending with "th" because there are now images in the collection from 1st o
+    # 2nd or 3rd century and like this we can avoid some false positives (like "1st regiment")
+    pattern = r'\d{1,2}(th) Century\b'
+    matches = re.findall(pattern, title)
+    for i in range(0, len(matches)):
+        matches[i] = matches[i].lower().strip("th").strip("century").strip()
+
+    return matches
+        
