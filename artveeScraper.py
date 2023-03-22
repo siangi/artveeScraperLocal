@@ -24,7 +24,7 @@ def create_json(csv_path, json_path):
 
     data = {} 
     with open(csv_path, encoding='utf-8') as csvf: 
-        csv_reader = csv.DictReader(csvf) 
+        csv_reader = csv.DictReader(csvf, delimiter=";", quotechar="'") 
           
         # Convert each row into a dictionary and add it to data 
         for rows in csv_reader: 
@@ -34,6 +34,7 @@ def create_json(csv_path, json_path):
     with open(json_path, 'w', encoding='utf-8') as jsonf: 
         jsonf.write(json.dumps(data, indent=4)) 
 
+# retrieves image from artVee detail site and writes it to a local folder, returns online URL and local Path for metadata documentation
 def scrape_images(img_source, img_index, title, data_path, s3):
 
     """
@@ -59,7 +60,7 @@ def scrape_images(img_source, img_index, title, data_path, s3):
         img_file.write(requests.get(img_link).content)
         img_file.close()
 
-    return img_link
+    return (img_link, img_path)
 
 def scrape_meta_images(url, category, data_path, writer, s3):
 
@@ -94,6 +95,9 @@ def scrape_meta_images(url, category, data_path, writer, s3):
             if (title.find("a") != None):
                 title = title.get_text()
                 data.append(title)
+                originYear = findYear(title)
+                data.append(originYear[0])
+                data.append(originYear[1])
         else:
             title = "Untitled"
             data.append(title)
@@ -106,10 +110,11 @@ def scrape_meta_images(url, category, data_path, writer, s3):
             artist_info = "Unknown"
             data.append(artist_info)
 
-        link = scrape_images(img_source, img_index, title, data_path, None)
+        links = scrape_images(img_source, img_index, title, data_path, None)
 
         data.append(category)
-        data.append(link)
+        data.append(links[0])
+        data.append(links[1])
         writer.writerow(data)
         img_index += 1
 
@@ -137,8 +142,43 @@ def count_pages(category):
     
     return no_pages
 
+
+def findYear(title):
+    possibles = []
+
+    fourDigitYears = findFourDigitNumbers(title)
+    for year in fourDigitYears:
+        possibles.append((int(year), False))
+    centuryNumbers = findCenturyNumbers(title)
+
+    for century in centuryNumbers:
+        #19th century turns into 1800
+        possibles.append(((int(century) - 1) * 100, True))
+    
+    if (len(possibles) > 0):
+        possibles.sort(key = lambda possible: possible[0])
+        return possibles.pop()
+    else:
+        return (-1, False)
+
+def findFourDigitNumbers(title):
+    pattern = re.compile("\d{4}")
+    matches = re.findall(pattern, title)
+    return matches
+
+def findCenturyNumbers(title):
+    #only check for numbers ending with "th" because there are now images in the collection from 1st o
+    # 2nd or 3rd century and like this we can avoid some false positives (like "1st regiment")
+    pattern = r'\d{1,2}th Century\b'
+    matches = re.findall(pattern, title)
+    for i in range(0, len(matches)):
+        matches[i] = matches[i].lower().replace("th", "").replace("century", "").strip()
+
+    return matches
+        
+
 if __name__ == "__main__":
-    data_path = "C:\Studium\BPROJ\ArtVeeData\\"
+    data_path = "D:\Studium\Bachelor\ArtVeeDataFull\\"
     csv_path = os.path.join(data_path, "artvee.csv")
     json_path = os.path.join(data_path + "artvee.json")
     if (data_path == ""):
@@ -146,8 +186,8 @@ if __name__ == "__main__":
     else:
         with open(csv_path, "w", newline = "", encoding="utf-8") as f:
             #Create csv writer and header row
-            headers = ["Title", "Artist", "Category", "Link"]
-            writer = csv.writer(f)
+            headers = ["Title", "Year", "isCentury", "Artist", "Category", "URL", "Path"]
+            writer = csv.writer(f, delimiter=";")
             writer.writerow(headers)
 
             #Artvee categorizes its works and these are how they are written in the url
@@ -166,27 +206,3 @@ if __name__ == "__main__":
 
         #Create the json after all data is written in the csv
         create_json(csv_path, json_path)
-
-def find_Year(title):
-    possibles = []
-
-
-
-    possibles.sort(key = lambda possible: possible[0])
-    return possibles.pop()
-
-def find_fourDigitNumbers(title):
-    pattern = re.compile("\d{4}")
-    matches = re.findall(pattern, title)
-    return matches
-
-def find_CenturyNumbers(title):
-    #only check for numbers ending with "th" because there are now images in the collection from 1st o
-    # 2nd or 3rd century and like this we can avoid some false positives (like "1st regiment")
-    pattern = r'\d{1,2}(th) Century\b'
-    matches = re.findall(pattern, title)
-    for i in range(0, len(matches)):
-        matches[i] = matches[i].lower().strip("th").strip("century").strip()
-
-    return matches
-        
